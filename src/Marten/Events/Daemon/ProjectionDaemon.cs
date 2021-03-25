@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Baseline;
@@ -25,7 +24,6 @@ namespace Marten.Events.Daemon
         private readonly HighWaterAgent _highWater;
         private readonly ILogger _logger;
         private readonly DocumentStore _store;
-        private bool _hasStarted;
 
         public ProjectionDaemon(DocumentStore store, ILogger logger)
         {
@@ -48,12 +46,14 @@ namespace Marten.Events.Daemon
         {
             _store.Tenancy.Default.EnsureStorageExists(typeof(IEvent));
             await _highWater.Start();
-            _hasStarted = true;
         }
 
-        public async Task StartAll()
+        public async Task StartAllShards()
         {
-            if (!_hasStarted) await StartHighWaterDetection();
+            if (!_highWater.IsRunning)
+            {
+                await StartHighWaterDetection();
+            }
 
             var shards = _store.Events.Projections.AllShards();
             foreach (var shard in shards) await StartShard(shard, CancellationToken.None);
@@ -61,6 +61,11 @@ namespace Marten.Events.Daemon
 
         public async Task StartShard(string shardName, CancellationToken token)
         {
+            if (!_highWater.IsRunning)
+            {
+                await StartHighWaterDetection();
+            }
+
             // Latch it so it doesn't double start
             if (_agents.ContainsKey(shardName)) return;
 
@@ -69,8 +74,6 @@ namespace Marten.Events.Daemon
 
         public async Task StartShard(AsyncProjectionShard shard, CancellationToken cancellationToken)
         {
-            if (!_hasStarted) await StartHighWaterDetection();
-
             // Don't duplicate the shard
             if (_agents.ContainsKey(shard.Name.Identity)) return;
 
