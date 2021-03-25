@@ -73,6 +73,6 @@ namespace Marten.Events.Daemon
         /// methods
         /// </summary>
         /// <returns></returns>
-        Task StartDaemon();
+        Task StartHighWaterDetection();
     }
 }
